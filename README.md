@@ -12,7 +12,7 @@
 ---
 
 ## Repository Structure
-
+```
 eks-aws/
 ├── Terraform-files/       # Infrastructure as Code (EKS, VPC, IAM roles)
 ├── k8s/
@@ -22,7 +22,7 @@ eks-aws/
 ├── Fluxcd/                # GitOps configuration for FluxCD
 ├── app-code/              # Demo applications for CI/CD pipelines
 └── .gitignore
-
+```
 
 ## Goals
 
