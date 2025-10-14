@@ -1,0 +1,5 @@
+# Terraform files to ignore
+/Terraform-files/environments/dev/.terraform/
+/Terraform-files/environments/dev/*.tfstate
+/Terraform-files/environments/dev/*.tfstate.backup
+/Terraform-files/environments/dev/.terraform.lock.hcl
