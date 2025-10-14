@@ -14,14 +14,15 @@
 ## Repository Structure
 
 eks-aws/
-├── Terraform-files/ # Infrastructure as Code (EKS, VPC, IAM roles)
+├── Terraform-files/       # Infrastructure as Code (EKS, VPC, IAM roles)
 ├── k8s/
-│ ├── application/ # Demo app manifests
-│ ├── jenkins/ # Jenkins deployment manifests or Helm charts
-│ └── datadog/ # Datadog agent deployment manifests
-├── Fluxcd/ # GitOps configuration for FluxCD
-├── app-code/ # Demo applications for CI/CD pipelines
+│   ├── application/       # Demo app manifests
+│   ├── jenkins/           # Jenkins deployment manifests or Helm charts
+│   └── datadog/           # Datadog agent deployment manifests
+├── Fluxcd/                # GitOps configuration for FluxCD
+├── app-code/              # Demo applications for CI/CD pipelines
 └── .gitignore
+
 
 ## Goals
 
