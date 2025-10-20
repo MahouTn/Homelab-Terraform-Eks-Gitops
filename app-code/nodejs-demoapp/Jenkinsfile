@@ -23,7 +23,7 @@ pipeline {
                     // Using your preferred Kaniko image
                     image 'gcr.io/kaniko-project/executor:latest' 
                     tty true
-                    # Kaniko requires the Dockerfile and source code to be in /workspace
+                    // Kaniko requires the Dockerfile and source code to be in /workspace
                     command 'cat' 
                 }
             }
@@ -39,7 +39,7 @@ pipeline {
         ECR_REPO = 'homelab-eks' 
         
         IMAGE_TAG = "${env.BUILD_NUMBER}"
-        # We will dynamically fetch the account ID, but the region and repo are fixed.
+        // We will dynamically fetch the account ID, but the region and repo are fixed.
         IMAGE_FULL_URI = "${env.AWS_ACCOUNT_ID}.dkr.ecr.${env.AWS_REGION}.amazonaws.com/${env.ECR_REPO}:${env.IMAGE_TAG}"
     }
 
@@ -50,6 +50,8 @@ pipeline {
                     // Fetch the current AWS Account ID using the IRSA role
                     // This command should succeed if the IRSA role is properly assumed.
                     echo "Fetching AWS Account ID using IRSA..."
+                    // Note: This requires the 'aws' cli to be available on the path of the Jenkins controller or a separate container.
+                    // If you don't have 'aws' cli, we can change this to use your hardcoded ID.
                     env.AWS_ACCOUNT_ID = sh(script: 'aws sts get-caller-identity --query Account --output text', returnStdout: true).trim()
                     
                     echo "AWS Account ID: ${env.AWS_ACCOUNT_ID}"
@@ -64,12 +66,12 @@ pipeline {
                     // Kaniko automatically uses the IRSA-provided credentials 
                     // (set via the serviceAccount 'kaniko-sa') for ECR authentication.
                     sh """
-                    # Kaniko command to build and push
-                    /kaniko/executor \
-                        --context=\${WORKSPACE}/deploy \
-                        --dockerfile=\${WORKSPACE}/deploy/Dockerfile \
-                        --destination=\${IMAGE_FULL_URI} \
-                        --skip-tls-verify \
+                    # Kaniko command to build and push (Shell comment is allowed here)
+                    /kaniko/executor \\
+                        --context=\${WORKSPACE}/deploy \\
+                        --dockerfile=\${WORKSPACE}/deploy/Dockerfile \\
+                        --destination=\${IMAGE_FULL_URI} \\
+                        --skip-tls-verify \\
                         --insecure-pull
                     """
                     echo "Successfully built and pushed image to ECR: ${env.IMAGE_FULL_URI}"
