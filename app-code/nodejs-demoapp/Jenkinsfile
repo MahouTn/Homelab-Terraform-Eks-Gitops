@@ -7,7 +7,11 @@ pipeline {
     // Defines where the pipeline runs (on the EKS cluster)
     agent {
         kubernetes {
-            // --- CRITICAL IRSA INTEGRATION ---
+            // --- CRITICAL FIX: Specify the correct Namespace ---
+            // The service account was deployed to the 'ci-cd' namespace, 
+            // so we must tell Jenkins to launch the agent pod there.
+            namespace 'ci-cd'
+
             // This is the Service Account we created via kubectl, which is 
             // annotated with the ECR Push IAM Role ARN.
             serviceAccount 'kaniko-sa' 
