@@ -16,20 +16,15 @@ pipeline {
             defaultContainer 'kaniko'
             
             // Define the container templates for the Kubernetes Pod
-            // We use 'containerTemplates' (plural) here, which correctly holds the definitions.
             containerTemplates {
                 containerTemplate {
                     name 'kaniko'
                     // Using your preferred Kaniko image
                     image 'gcr.io/kaniko-project/executor:latest' 
                     tty true
-                    // Kaniko requires the Dockerfile and source code to be in /workspace
-                    command '/busybox/sh'
-                    args '-c', 'sleep 1000000'
+                    // Removed custom 'command' and 'args'. The pod will now use the 
+                    // Kaniko image's default entrypoint, which is correct for building.
                 }
-                // Optional: Add a sidecar container here if you needed 'aws cli' separately, 
-                // but we will assume Kaniko executor includes it for now, or use the current host.
-                // containerTemplate { ... }
             }
             // Use the label from your old Jenkinsfile for agent matching
             label 'kaniko-agent'
@@ -55,8 +50,7 @@ pipeline {
                     // This command should succeed if the IRSA role is properly assumed.
                     echo "Fetching AWS Account ID using IRSA..."
                     
-                    // NOTE: This stage will run in the main Jenkins agent container (usually JNLP/Maven/etc.)
-                    // and requires the 'aws' cli to be installed there to fetch the Account ID.
+                    // NOTE: This stage requires the 'aws' cli to be installed in the JNLP/base agent container.
                     env.AWS_ACCOUNT_ID = sh(script: 'aws sts get-caller-identity --query Account --output text', returnStdout: true).trim()
                     
                     echo "AWS Account ID: ${env.AWS_ACCOUNT_ID}"
