@@ -1,41 +1,80 @@
-pipeline {
-  agent {
-    kubernetes {
-      label 'kaniko-agent'
-      defaultContainer 'kaniko'
-      yaml """
-apiVersion: v1
-kind: Pod
-spec:
-  containers:
-  - name: kaniko
-    image: gcr.io/kaniko-project/executor:latest
-    command:
-    - /busybox/sh
-    args:
-    - -c
-    - "sleep 1000000"
-    tty: true
-"""
-    }
-  }
+// Filename: Jenkinsfile
+// Description: CI/CD pipeline that uses a Kubernetes agent with the
+//              Kaniko Service Account (kaniko-sa) to securely build and
+//              push a Docker image to ECR using IRSA.
 
-  stages {
-    stage('Build & Push') {
-      steps {
-        container('kaniko') {
-          script {
-            sh '''
-            /kaniko/executor \
-              --context ${WORKSPACE}/deploy \
-              --dockerfile ${WORKSPACE}/deploy/Dockerfile \
-              --destination 802617578034.dkr.ecr.eu-west-1.amazonaws.com/homelab-eks:latest \
-              --insecure \
-              --skip-tls-verify
-            '''
-          }
+pipeline {
+    // Defines where the pipeline runs (on the EKS cluster)
+    agent {
+        kubernetes {
+            // Use the Kaniko image as the primary container for building
+            container 'kaniko'
+            
+            // --- CRITICAL IRSA INTEGRATION ---
+            // This is the Service Account we created via kubectl, which is 
+            // annotated with the ECR Push IAM Role ARN.
+            serviceAccount 'kaniko-sa' 
+            
+            // Define the Kaniko container for the build stage
+            defaultContainer 'kaniko'
+            containers {
+                containerTemplate {
+                    name 'kaniko'
+                    // Using your preferred Kaniko image
+                    image 'gcr.io/kaniko-project/executor:latest' 
+                    tty true
+                    # Kaniko requires the Dockerfile and source code to be in /workspace
+                    command 'cat' 
+                }
+            }
+            // Use the label from your old Jenkinsfile for agent matching
+            label 'kaniko-agent'
         }
-      }
     }
-  }
+
+    environment {
+        // --- ECR & Image Variables ---
+        // INFERRED from your old Jenkinsfile:
+        AWS_REGION = 'eu-west-1' 
+        ECR_REPO = 'homelab-eks' 
+        
+        IMAGE_TAG = "${env.BUILD_NUMBER}"
+        # We will dynamically fetch the account ID, but the region and repo are fixed.
+        IMAGE_FULL_URI = "${env.AWS_ACCOUNT_ID}.dkr.ecr.${env.AWS_REGION}.amazonaws.com/${env.ECR_REPO}:${env.IMAGE_TAG}"
+    }
+
+    stages {
+        stage('Setup Environment') {
+            steps {
+                script {
+                    // Fetch the current AWS Account ID using the IRSA role
+                    // This command should succeed if the IRSA role is properly assumed.
+                    echo "Fetching AWS Account ID using IRSA..."
+                    env.AWS_ACCOUNT_ID = sh(script: 'aws sts get-caller-identity --query Account --output text', returnStdout: true).trim()
+                    
+                    echo "AWS Account ID: ${env.AWS_ACCOUNT_ID}"
+                    echo "Image URI: ${env.IMAGE_FULL_URI}"
+                }
+            }
+        }
+
+        stage('Build and Push Image') {
+            steps {
+                container('kaniko') {
+                    // Kaniko automatically uses the IRSA-provided credentials 
+                    // (set via the serviceAccount 'kaniko-sa') for ECR authentication.
+                    sh """
+                    # Kaniko command to build and push
+                    /kaniko/executor \
+                        --context=\${WORKSPACE}/deploy \
+                        --dockerfile=\${WORKSPACE}/deploy/Dockerfile \
+                        --destination=\${IMAGE_FULL_URI} \
+                        --skip-tls-verify \
+                        --insecure-pull
+                    """
+                    echo "Successfully built and pushed image to ECR: ${env.IMAGE_FULL_URI}"
+                }
+            }
+        }
+    }
 }
