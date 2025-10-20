@@ -1,47 +1,41 @@
 pipeline {
-    agent {
-        kubernetes {
-            label 'kaniko-agent'
-            defaultContainer 'kaniko'
-            yaml """
+  agent {
+    kubernetes {
+      label 'kaniko-agent'
+      defaultContainer 'kaniko'
+      yaml """
 apiVersion: v1
 kind: Pod
 spec:
   containers:
   - name: kaniko
     image: gcr.io/kaniko-project/executor:latest
-    command: ["sleep"]
-    args: ["infinity"]
+    command:
+    - /busybox/sh
+    args:
+    - -c
+    - "sleep 1000000"
     tty: true
 """
-        }
     }
+  }
 
-    environment {
-        ECR_REGISTRY = '802617578034.dkr.ecr.eu-west-1.amazonaws.com'
-        IMAGE_NAME = 'homelab-eks'
-        IMAGE_TAG  = 'latest'
-        AWS_REGION = 'eu-west-1'
-    }
-
-    stages {
-        stage('Build & Push') {
-            steps {
-                container('kaniko') {
-                    script {
-                        sh """
-                        /kaniko/executor \
-                          --dockerfile=deploy/Dockerfile \
-                          --context=\$WORKSPACE \
-                          --destination=\$ECR_REGISTRY/\$IMAGE_NAME:\$IMAGE_TAG \
-                          --cleanup \
-                          --oci-layout-path /kaniko/oci \
-                          --insecure \
-                          --skip-tls-verify
-                        """
-                    }
-                }
-            }
+  stages {
+    stage('Build & Push') {
+      steps {
+        container('kaniko') {
+          script {
+            sh '''
+            /kaniko/executor \
+              --context ${WORKSPACE}/deploy \
+              --dockerfile ${WORKSPACE}/deploy/Dockerfile \
+              --destination 802617578034.dkr.ecr.eu-west-1.amazonaws.com/homelab-eks:latest \
+              --insecure \
+              --skip-tls-verify
+            '''
+          }
         }
+      }
     }
+  }
 }
