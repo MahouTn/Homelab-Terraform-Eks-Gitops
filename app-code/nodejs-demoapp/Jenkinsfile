@@ -7,17 +7,17 @@ pipeline {
     // Defines where the pipeline runs (on the EKS cluster)
     agent {
         kubernetes {
-            // Use the Kaniko image as the primary container for building
-            container 'kaniko'
-            
             // --- CRITICAL IRSA INTEGRATION ---
             // This is the Service Account we created via kubectl, which is 
             // annotated with the ECR Push IAM Role ARN.
             serviceAccount 'kaniko-sa' 
             
-            // Define the Kaniko container for the build stage
+            // Define the Kaniko container as the main container for the agent Pod
             defaultContainer 'kaniko'
-            containers {
+            
+            // Define the container templates for the Kubernetes Pod
+            // We use 'containerTemplates' (plural) here, which correctly holds the definitions.
+            containerTemplates {
                 containerTemplate {
                     name 'kaniko'
                     // Using your preferred Kaniko image
@@ -26,6 +26,9 @@ pipeline {
                     // Kaniko requires the Dockerfile and source code to be in /workspace
                     command 'cat' 
                 }
+                // Optional: Add a sidecar container here if you needed 'aws cli' separately, 
+                // but we will assume Kaniko executor includes it for now, or use the current host.
+                // containerTemplate { ... }
             }
             // Use the label from your old Jenkinsfile for agent matching
             label 'kaniko-agent'
@@ -50,8 +53,9 @@ pipeline {
                     // Fetch the current AWS Account ID using the IRSA role
                     // This command should succeed if the IRSA role is properly assumed.
                     echo "Fetching AWS Account ID using IRSA..."
-                    // Note: This requires the 'aws' cli to be available on the path of the Jenkins controller or a separate container.
-                    // If you don't have 'aws' cli, we can change this to use your hardcoded ID.
+                    
+                    // NOTE: This stage will run in the main Jenkins agent container (usually JNLP/Maven/etc.)
+                    // and requires the 'aws' cli to be installed there to fetch the Account ID.
                     env.AWS_ACCOUNT_ID = sh(script: 'aws sts get-caller-identity --query Account --output text', returnStdout: true).trim()
                     
                     echo "AWS Account ID: ${env.AWS_ACCOUNT_ID}"
@@ -62,6 +66,7 @@ pipeline {
 
         stage('Build and Push Image') {
             steps {
+                // This step explicitly runs inside the Kaniko container defined above
                 container('kaniko') {
                     // Kaniko automatically uses the IRSA-provided credentials 
                     // (set via the serviceAccount 'kaniko-sa') for ECR authentication.
