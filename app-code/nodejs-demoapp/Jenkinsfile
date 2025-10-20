@@ -16,16 +16,18 @@ pipeline {
             defaultContainer 'kaniko'
             
             // Define the container templates for the Kubernetes Pod
-            containerTemplates {
-                containerTemplate {
-                    name 'kaniko'
+            // The template block syntax is adjusted to satisfy Groovy's list requirement.
+            containerTemplates([
+                containerTemplate(
+                    name: 'kaniko',
                     // Using your preferred Kaniko image
-                    image 'gcr.io/kaniko-project/executor:latest' 
-                    tty true
+                    image: 'gcr.io/kaniko-project/executor:latest', 
+                    tty: true,
+                    alwaysPullImage: true
                     // Removed custom 'command' and 'args'. The pod will now use the 
                     // Kaniko image's default entrypoint, which is correct for building.
-                }
-            }
+                )
+            ])
             // Use the label from your old Jenkinsfile for agent matching
             label 'kaniko-agent'
         }
