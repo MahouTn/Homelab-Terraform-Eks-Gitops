@@ -7,29 +7,29 @@ pipeline {
     // Defines where the pipeline runs (on the EKS cluster)
     agent {
         kubernetes {
-            // --- CRITICAL FIX: Specify the correct Namespace ---
-            // The service account was deployed to the 'ci-cd' namespace, 
-            // so we must tell Jenkins to launch the agent pod there.
+            // The Jenkins controller is now authorized to use the 'ci-cd' namespace (via RBAC fix).
             namespace 'ci-cd'
 
             // This is the Service Account we created via kubectl, which is 
             // annotated with the ECR Push IAM Role ARN.
             serviceAccount 'kaniko-sa' 
             
-            // Define the Kaniko container as the main container for the agent Pod
-            defaultContainer 'kaniko'
+            // REMOVED: defaultContainer 'kaniko' 
+            // The JNLP agent will now run in the *default* JNLP container injected by the plugin.
             
             // Define the container templates for the Kubernetes Pod
-            // The template block syntax is adjusted to satisfy Groovy's list requirement.
             containerTemplates([
+                // The Kaniko container is now a *sidecar* that is explicitly kept running 
+                // so the Pod doesn't exit immediately after launch.
                 containerTemplate(
                     name: 'kaniko',
-                    // Using your preferred Kaniko image
                     image: 'gcr.io/kaniko-project/executor:latest', 
                     tty: true,
-                    alwaysPullImage: true
-                    // Removed custom 'command' and 'args'. The pod will now use the 
-                    // Kaniko image's default entrypoint, which is correct for building.
+                    alwaysPullImage: true,
+                    # --- CRITICAL FIX: Keep the container alive ---
+                    # We override Kaniko's default entrypoint to run a shell that waits forever.
+                    command: '/busybox/sh',
+                    args: '-c sleep 9999999'
                 )
             ])
             // Use the label from your old Jenkinsfile for agent matching
@@ -39,12 +39,10 @@ pipeline {
 
     environment {
         // --- ECR & Image Variables ---
-        // INFERRED from your old Jenkinsfile:
         AWS_REGION = 'eu-west-1' 
         ECR_REPO = 'homelab-eks' 
         
         IMAGE_TAG = "${env.BUILD_NUMBER}"
-        // We will dynamically fetch the account ID, but the region and repo are fixed.
         IMAGE_FULL_URI = "${env.AWS_ACCOUNT_ID}.dkr.ecr.${env.AWS_REGION}.amazonaws.com/${env.ECR_REPO}:${env.IMAGE_TAG}"
     }
 
@@ -52,11 +50,11 @@ pipeline {
         stage('Setup Environment') {
             steps {
                 script {
-                    // Fetch the current AWS Account ID using the IRSA role
-                    // This command should succeed if the IRSA role is properly assumed.
+                    // NOTE: This stage requires the 'aws' cli to be installed in the default agent container (jnlp).
                     echo "Fetching AWS Account ID using IRSA..."
                     
-                    // NOTE: This stage requires the 'aws' cli to be installed in the JNLP/base agent container.
+                    // Since the 'aws' command is being run in the default agent container, 
+                    // ensure the default JNLP image used by your cloud config has the AWS CLI installed.
                     env.AWS_ACCOUNT_ID = sh(script: 'aws sts get-caller-identity --query Account --output text', returnStdout: true).trim()
                     
                     echo "AWS Account ID: ${env.AWS_ACCOUNT_ID}"
@@ -67,12 +65,11 @@ pipeline {
 
         stage('Build and Push Image') {
             steps {
-                // This step explicitly runs inside the Kaniko container defined above
+                // This step explicitly runs inside the Kaniko sidecar container
                 container('kaniko') {
-                    // Kaniko automatically uses the IRSA-provided credentials 
-                    // (set via the serviceAccount 'kaniko-sa') for ECR authentication.
+                    // Kaniko command to build and push
                     sh """
-                    # Kaniko command to build and push (Shell comment is allowed here)
+                    # Running /kaniko/executor explicitly now that the sidecar is kept alive.
                     /kaniko/executor \\
                         --context=\${WORKSPACE}/deploy \\
                         --dockerfile=\${WORKSPACE}/deploy/Dockerfile \\
