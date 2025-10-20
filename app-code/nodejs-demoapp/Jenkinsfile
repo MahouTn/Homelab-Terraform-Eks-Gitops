@@ -26,8 +26,8 @@ pipeline {
                     image: 'gcr.io/kaniko-project/executor:latest', 
                     tty: true,
                     alwaysPullImage: true,
-                    # --- CRITICAL FIX: Keep the container alive ---
-                    # We override Kaniko's default entrypoint to run a shell that waits forever.
+                    // --- CRITICAL FIX: Keep the container alive ---
+                    // We override Kaniko's default entrypoint to run a shell that waits forever.
                     command: '/busybox/sh',
                     args: '-c sleep 9999999'
                 )
