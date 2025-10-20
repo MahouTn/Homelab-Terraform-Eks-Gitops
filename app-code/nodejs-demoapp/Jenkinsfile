@@ -24,7 +24,8 @@ pipeline {
                     image 'gcr.io/kaniko-project/executor:latest' 
                     tty true
                     // Kaniko requires the Dockerfile and source code to be in /workspace
-                    command 'cat' 
+                    command '/busybox/sh'
+                    args '-c', 'sleep 1000000'
                 }
                 // Optional: Add a sidecar container here if you needed 'aws cli' separately, 
                 // but we will assume Kaniko executor includes it for now, or use the current host.
