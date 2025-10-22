@@ -20,8 +20,6 @@ pipeline {
                     alwaysPullImage: true,
                     // FIX: Set a command and args to keep the container alive indefinitely.
                     // We use /bin/sh to run a sleep command as a sidecar.
-                    command: '/bin/sh',
-                    args: '-c sleep 9999999'
                 )
             ])
             label 'kaniko-agent'
