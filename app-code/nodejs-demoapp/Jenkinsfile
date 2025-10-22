@@ -6,40 +6,47 @@ pipeline {
 
     agent {
         kubernetes {
-            yaml '''
+            yaml """
+apiVersion: v1
 kind: Pod
 metadata:
-  name: kaniko-builder
+  name: docker-agent
   namespace: ci-cd
 spec:
-  serviceAccountName: kaniko-sa
+  serviceAccountName: jenkins-sa  # normal Jenkins SA
   containers:
-  - name: kaniko
-    image: gcr.io/kaniko-project/executor:v1.23.2
-    imagePullPolicy: Always
+  - name: docker
+    image: docker:24-dind
+    securityContext:
+      privileged: true             # needed for DinD
     command:
-     - /bin/bash
-     - -c
-     - "tail -f /dev/null"
+      - dockerd-entrypoint.sh
+    args:
+      - --host=tcp://0.0.0.0:2375 --host=unix:///var/run/docker.sock
     tty: true
-'''
-            defaultContainer 'kaniko'
+"""
+            defaultContainer 'docker'
         }
     }
 
     stages {
         stage('Build and Push Image') {
             steps {
-                container('kaniko') {
+                container('docker') {
                     sh '''
-                    set -ex
-                    REGISTRY_DOMAIN=$(echo ${IMAGE_FULL_URI} | cut -d/ -f1)
+                    # Install AWS CLI
+                    apk add --no-cache python3 py3-pip
+                    pip3 install awscli --upgrade
 
-                    /kaniko/executor \
-                        --context=${WORKSPACE}/app-code/nodejs-demoapp/build \
-                        --dockerfile=Dockerfile \
-                        --destination=${IMAGE_FULL_URI} \
-                        --skip-tls-verify-registry=${REGISTRY_DOMAIN}
+                    # Authenticate Docker to ECR
+                    aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin 802617578034.dkr.ecr.eu-west-1.amazonaws.com
+
+                    # Build the Docker image
+                    docker build -t homelab-eks:latest ${WORKSPACE}/app-code/nodejs-demoapp/build
+
+                    # Tag and push to ECR
+                    docker tag homelab-eks:latest $IMAGE_FULL_URI
+                    docker push $IMAGE_FULL_URI
                     '''
                 }
             }
