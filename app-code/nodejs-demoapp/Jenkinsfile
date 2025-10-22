@@ -17,9 +17,10 @@ pipeline {
                     image: 'gcr.io/kaniko-project/executor:latest', 
                     tty: true,
                     alwaysPullImage: true,
-                    // FIX: Changed args from Groovy Array to expected String format.
-                    // This should resolve the ClassCastException.
-                    command: 'sleep',
+                    // FINAL FIX (V3): The 'sleep' binary is not on $PATH. 
+                    // Use the absolute path /bin/sleep to guarantee execution 
+                    // and keep the sidecar alive.
+                    command: '/bin/sleep',
                     args: '360000' // The Kubernetes plugin expects a single string here.
                 )
             ])
