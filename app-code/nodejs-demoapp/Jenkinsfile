@@ -15,7 +15,7 @@ pipeline {
 
     agent {
         kubernetes {
-            // Define the Kubernetes Pod using raw YAML
+            // Define the Kubernetes Pod using raw YAMl
             yaml '''
 kind: Pod
 metadata:
