@@ -15,7 +15,7 @@ spec:
   serviceAccountName: kaniko-sa
   containers:
   - name: kaniko
-    image: 802617578034.dkr.ecr.eu-west-1.amazonaws.com/kaniko-aws:latest
+    image: gcr.io/kaniko-project/executor:v1.23.2
     imagePullPolicy: Always
     command:
      - /bin/bash
