@@ -14,13 +14,13 @@ pipeline {
                 // The Kaniko container is the sidecar. It must be kept alive.
                 containerTemplate(
                     name: 'kaniko',
-                    image: 'gcr.io/kaniko-project/executor:latest', 
+                    image: 'gcr.io/kaniko-project/executor:debug', 
                     tty: true,
                     alwaysPullImage: true,
                     // FINAL FIX (V4): Since /bin/sleep failed, we use the next best 
                     // utility for keeping a container running: 'cat'
                     // We try to call 'cat' without a shell, as we don't know the shell's path.
-                    command: 'cat',
+                    command: '/busybox/cat',
                     args: '360000' // This argument will likely be ignored, but required syntax.
                 )
             ])
