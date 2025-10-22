@@ -51,7 +51,7 @@ spec:
                     sh """
                     /kaniko/executor \\
                         --context=\${WORKSPACE}/deploy \\
-                        --dockerfile=Dockerfile \\
+                        --dockerfile=./Dockerfile \\
                         --destination=\${IMAGE_FULL_URI}
                     """
                 }
