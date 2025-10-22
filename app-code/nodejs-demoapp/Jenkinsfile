@@ -1,62 +1,42 @@
 // Filename: Jenkinsfile
-// Description: CI/CD pipeline that uses a Kubernetes agent with the
-//              Kaniko Service Account (kaniko-sa) to securely build and
-//              push a Docker image to ECR using IRSA.
+// Description: CI/CD pipeline that builds and pushes Docker images to AWS ECR using Kaniko sidecar and IRSA.
 
 pipeline {
-    // Defines where the pipeline runs (on the EKS cluster)
     agent {
         kubernetes {
-            // The Jenkins controller is now authorized to use the 'ci-cd' namespace (via RBAC fix).
             namespace 'ci-cd'
-
-            // This is the Service Account we created via kubectl, which is 
-            // annotated with the ECR Push IAM Role ARN.
-            serviceAccount 'kaniko-sa' 
+            serviceAccount 'kaniko-sa'
             
-            // REMOVED: defaultContainer 'kaniko' 
-            // The JNLP agent will now run in the *default* JNLP container injected by the plugin.
-            
-            // Define the container templates for the Kubernetes Pod
+            // Pod template with Kaniko as sidecar
             containerTemplates([
-                // The Kaniko container is now a *sidecar* that is explicitly kept running 
-                // so the Pod doesn't exit immediately after launch.
                 containerTemplate(
                     name: 'kaniko',
-                    image: 'gcr.io/kaniko-project/executor:latest', 
-                    tty: true,
-                    alwaysPullImage: true,
-                    // --- CRITICAL FIX: Keep the container alive using the standard shell ---
-                    // Kaniko does not have /busybox/sh, so we use /bin/sh.
-                    command: '/kaniko/executor',  // run Kaniko directly
-                    args: ''
+                    image: 'gcr.io/kaniko-project/executor:latest',
+                    tty: true,              // keeps container alive
+                    alwaysPullImage: true
                 )
             ])
-            // Use the label from your old Jenkinsfile for agent matching
             label 'kaniko-agent'
         }
     }
 
     environment {
-        // --- ECR & Image Variables ---
-        AWS_REGION = 'eu-west-1' 
-        ECR_REPO = 'homelab-eks' 
-        
+        AWS_REGION = 'eu-west-1'
+        ECR_REPO = 'homelab-eks'
         IMAGE_TAG = "${env.BUILD_NUMBER}"
-        IMAGE_FULL_URI = "${env.AWS_ACCOUNT_ID}.dkr.ecr.${env.AWS_REGION}.amazonaws.com/${env.ECR_REPO}:${env.IMAGE_TAG}"
+        IMAGE_FULL_URI = "802617578034.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}"
     }
 
     stages {
         stage('Setup Environment') {
             steps {
                 script {
-                    // NOTE: This stage requires the 'aws' cli to be installed in the default agent container (jnlp).
-                    echo "Fetching AWS Account ID using IRSA..."
-                    
-                    // Since the 'aws' command is being run in the default agent container, 
-                    // ensure the default JNLP image used by your cloud config has the AWS CLI installed.
-                    env.AWS_ACCOUNT_ID = sh(script: 'aws sts get-caller-identity --query Account --output text', returnStdout: true).trim()
-                    
+                    // Get AWS Account ID via IRSA in JNLP container
+                    echo "Fetching AWS Account ID..."
+                    env.AWS_ACCOUNT_ID = sh(
+                        script: "aws sts get-caller-identity --query Account --output text",
+                        returnStdout: true
+                    ).trim()
                     echo "AWS Account ID: ${env.AWS_ACCOUNT_ID}"
                     echo "Image URI: ${env.IMAGE_FULL_URI}"
                 }
@@ -65,7 +45,6 @@ pipeline {
 
         stage('Build and Push Image') {
             steps {
-                // This step explicitly runs inside the Kaniko sidecar container
                 container('kaniko') {
                     withEnv(["IMAGE_FULL_URI=${env.IMAGE_FULL_URI}"]) {
                         sh """
@@ -77,8 +56,9 @@ pipeline {
                             --insecure-pull
                         """
                     }
+                    echo "Successfully built and pushed image: ${env.IMAGE_FULL_URI}"
                 }
+            }
         }
     }
-}
 }
