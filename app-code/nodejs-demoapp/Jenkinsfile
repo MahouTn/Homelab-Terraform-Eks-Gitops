@@ -1,18 +1,13 @@
-// Filename: Jenkinsfile
-// Description: CI/CD pipeline that builds and pushes Docker images to AWS ECR using Kaniko sidecar and IRSA.
-
 pipeline {
     agent {
         kubernetes {
             namespace 'ci-cd'
             serviceAccount 'kaniko-sa'
-            
-            // Pod template with Kaniko as sidecar
             containerTemplates([
                 containerTemplate(
                     name: 'kaniko',
                     image: 'gcr.io/kaniko-project/executor:latest',
-                    tty: true,              // keeps container alive
+                    tty: true,
                     alwaysPullImage: true
                 )
             ])
@@ -23,20 +18,21 @@ pipeline {
     environment {
         AWS_REGION = 'eu-west-1'
         ECR_REPO = 'homelab-eks'
-        IMAGE_TAG = "${env.BUILD_NUMBER}"
-        IMAGE_FULL_URI = "802617578034.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}"
     }
 
     stages {
         stage('Setup Environment') {
             steps {
                 script {
-                    // Get AWS Account ID via IRSA in JNLP container
-                    echo "Fetching AWS Account ID..."
-                    env.AWS_ACCOUNT_ID = sh(
+                    // Fetch AWS Account ID in JNLP container
+                    def accountId = sh(
                         script: "aws sts get-caller-identity --query Account --output text",
                         returnStdout: true
                     ).trim()
+                    env.AWS_ACCOUNT_ID = accountId
+                    env.IMAGE_TAG = "${env.BUILD_NUMBER}"
+                    env.IMAGE_FULL_URI = "${accountId}.dkr.ecr.${env.AWS_REGION}.amazonaws.com/${env.ECR_REPO}:${env.IMAGE_TAG}"
+                    
                     echo "AWS Account ID: ${env.AWS_ACCOUNT_ID}"
                     echo "Image URI: ${env.IMAGE_FULL_URI}"
                 }
@@ -46,17 +42,14 @@ pipeline {
         stage('Build and Push Image') {
             steps {
                 container('kaniko') {
-                    withEnv(["IMAGE_FULL_URI=${env.IMAGE_FULL_URI}"]) {
-                        sh """
-                        /kaniko/executor \
-                            --context=\${WORKSPACE}/deploy \
-                            --dockerfile=\${WORKSPACE}/deploy/Dockerfile \
-                            --destination=\${IMAGE_FULL_URI} \
-                            --skip-tls-verify \
-                            --insecure-pull
-                        """
-                    }
-                    echo "Successfully built and pushed image: ${env.IMAGE_FULL_URI}"
+                    sh """
+                    /kaniko/executor \
+                        --context=\${WORKSPACE}/deploy \
+                        --dockerfile=\${WORKSPACE}/deploy/Dockerfile \
+                        --destination=${env.IMAGE_FULL_URI} \
+                        --skip-tls-verify \
+                        --insecure-pull
+                    """
                 }
             }
         }
