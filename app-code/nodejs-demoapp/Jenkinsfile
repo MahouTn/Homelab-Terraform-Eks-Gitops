@@ -17,7 +17,61 @@ pipeline {
                     image: 'gcr.io/kaniko-project/executor:latest', 
                     tty: true,
                     alwaysPullImage: true,
-                    // FINAL FIX (V3): The 'sleep' binary is not on $PATH. 
+                    // FINAL FIX (V3): The 'sleep' binary is not on $PATH. // Filename: Jenkinsfile
+// Description: CI/CD pipeline that uses a Kubernetes agent with the
+//              Kaniko Service Account (kaniko-sa) to securely build and
+//              push a Docker image to ECR using IRSA.
+
+pipeline {
+    // Defines where the pipeline runs (on the EKS cluster)
+    agent {
+        kubernetes {
+            namespace 'ci-cd'
+            serviceAccount 'kaniko-sa' 
+            
+            containerTemplates([ // NOTE: Must be containerTemplates, not containerTemplate
+                // The Kaniko container is the sidecar. It must be kept alive.
+                containerTemplate(
+                    name: 'kaniko',
+                    image: 'gcr.io/kaniko-project/executor:latest', 
+                    tty: true,
+                    alwaysPullImage: true,
+                    // FINAL FIX (V4): Since /bin/sleep failed, we use the next best 
+                    // utility for keeping a container running: 'cat'
+                    // We try to call 'cat' without a shell, as we don't know the shell's path.
+                    command: 'cat',
+                    args: '360000' // This argument will likely be ignored, but required syntax.
+                )
+            ])
+            label 'kaniko-agent'
+        }
+    }
+
+    environment {
+        // NOTE: I'm leaving the image URI hardcoded as per your provided pipeline.
+        IMAGE_FULL_URI = '802617578034.dkr.ecr.eu-west-1.amazonaws.com/homelab-eks:latest'
+    }
+
+    stages {
+        stage('Build and Push Image') {
+            steps {
+                // This step explicitly runs inside the Kaniko sidecar container
+                container('kaniko') {
+                    // Kaniko command to build and push
+                    sh """
+                    /kaniko/executor \\
+                        --context=\${WORKSPACE}/deploy \\
+                        --dockerfile=\${WORKSPACE}/deploy/Dockerfile \\
+                        --destination=\${IMAGE_FULL_URI} \\
+                        --skip-tls-verify \\
+                        --insecure-pull
+                    """
+                }
+            }
+        }
+    }
+}
+
                     // Use the absolute path /bin/sleep to guarantee execution 
                     // and keep the sidecar alive.
                     command: '/bin/sleep',
