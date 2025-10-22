@@ -22,21 +22,15 @@ metadata:
   name: kaniko-builder
   namespace: ci-cd
 spec:
-  # IMPORTANT: This links the Pod to your AWS IAM Role (IRSA) for ECR access
+  # CRITICAL: This links the Pod to your AWS IAM Role (IRSA) for ECR access
   serviceAccountName: kaniko-sa 
   containers:
   - name: kaniko
-    image: gcr.io/kaniko-project/executor:debug
+    image: gcr.io/kaniko-project/executor:v1.23.2-debug
     imagePullPolicy: IfNotPresent
-    # FIX 1: Explicitly defining AWS environment variables to ensure IRSA works correctly
-    env:
-      - name: AWS_REGION
-        value: "eu-west-1"
-      - name: AWS_SDK_LOAD_CONFIG
-        value: "1" # Tells AWS SDKs to look for web identity tokens
-
-    # FINAL FIX: Use the 'tail -f /dev/null' command via the shell. 
-    # This guarantees the container runs indefinitely.
+    
+    # FIX: Use the 'tail -f /dev/null' command via the shell. 
+    # This guarantees the container runs indefinitely and becomes ready.
     command:
      - /busybox/sh
      - -c
@@ -54,14 +48,17 @@ spec:
                 // The main pipeline stage runs inside the 'kaniko' container
                 container('kaniko'){
                     // Kaniko command to build and push. 
-                    // FIX: Using the explicit relative path './Dockerfile' which is often more robust 
-                    // than 'Dockerfile' when combined with the absolute context path.
-                    // Kaniko uses the /var/run/secrets/eks.amazonaws.com/serviceaccount/token for ECR auth.
                     sh """
+                    # Extract the registry domain (e.g., 802617578034.dkr.ecr.eu-west-1.amazonaws.com)
+                    # from the full URI to use with the skip-tls flag and registry mirror.
+                    REGISTRY_DOMAIN=\$(echo \${IMAGE_FULL_URI} | cut -d/ -f1)
+                    
                     /kaniko/executor \\
                         --context=\${WORKSPACE}/app-code/nodejs-demoapp/build \\
-                        --dockerfile=Dockerfile \\
-                        --destination=\${IMAGE_FULL_URI}
+                        --dockerfile=./Dockerfile \\
+                        --destination=\${IMAGE_FULL_URI} \\
+                        --skip-tls-verify-registry=\${REGISTRY_DOMAIN} \\
+                        --registry-mirror=\${REGISTRY_DOMAIN}
                     """
                 }
             }
