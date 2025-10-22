@@ -8,7 +8,9 @@ pipeline {
                     name: 'kaniko',
                     image: 'gcr.io/kaniko-project/executor:latest',
                     tty: true,
-                    alwaysPullImage: true
+                    alwaysPullImage: true,
+                    command: '/busybox/sh', // keep alive
+                    args: '-c "sleep 99999"'
                 )
             ])
             label 'kaniko-agent'
@@ -16,12 +18,11 @@ pipeline {
     }
 
     environment {
-        // --- Static AWS & Image Variables ---
-        AWS_ACCOUNT_ID = '802617578034'
         AWS_REGION = 'eu-west-1'
         ECR_REPO = 'homelab-eks'
-        IMAGE_TAG = 'latest' // Or any static tag you want
-        IMAGE_FULL_URI = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}"
+        AWS_ACCOUNT_ID = '802617578034'
+        IMAGE_TAG = 'latest'
+        IMAGE_FULL_URI = '802617578034.dkr.ecr.eu-west-1.amazonaws.com/homelab-eks:latest'
     }
 
     stages {
@@ -32,7 +33,7 @@ pipeline {
                     /kaniko/executor \
                         --context=\${WORKSPACE}/deploy \
                         --dockerfile=\${WORKSPACE}/deploy/Dockerfile \
-                        --destination=${env.IMAGE_FULL_URI} \
+                        --destination=\${IMAGE_FULL_URI} \
                         --skip-tls-verify \
                         --insecure-pull
                     """
