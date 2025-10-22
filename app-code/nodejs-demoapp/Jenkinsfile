@@ -2,7 +2,7 @@ pipeline {
     agent {
         kubernetes {
             namespace 'ci-cd'
-            serviceAccount 'jenkins-sa' // Make sure this SA has IRSA permissions for ECR
+            serviceAccount 'kaniko-sa' // Make sure this SA has IRSA permissions for ECR
             containerTemplates([
                 containerTemplate(
                     name: 'docker',
