@@ -32,15 +32,14 @@ spec:
             steps {
                 container('kaniko') {
                     sh '''
-                    echo ">>> Logging in to ECR..."
-                    aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin $(echo ${IMAGE_FULL_URI} | cut -d/ -f1)
+                    set -ex
+                    REGISTRY_DOMAIN=$(echo ${IMAGE_FULL_URI} | cut -d/ -f1)
 
-                    echo ">>> Building and pushing image..."
                     /kaniko/executor \
                         --context=${WORKSPACE}/app-code/nodejs-demoapp/build \
-                        --dockerfile=./Dockerfile \
+                        --dockerfile=Dockerfile \
                         --destination=${IMAGE_FULL_URI} \
-                        --skip-tls-verify
+                        --skip-tls-verify-registry=${REGISTRY_DOMAIN}
                     '''
                 }
             }
