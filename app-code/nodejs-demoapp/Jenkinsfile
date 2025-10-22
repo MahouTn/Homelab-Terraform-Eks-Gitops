@@ -67,19 +67,17 @@ pipeline {
             steps {
                 // This step explicitly runs inside the Kaniko sidecar container
                 container('kaniko') {
-                    // Kaniko command to build and push
-                    sh """
-                    # Running /kaniko/executor explicitly now that the sidecar is kept alive.
-                    /kaniko/executor \\
-                        --context=\${WORKSPACE}/deploy \\
-                        --dockerfile=\${WORKSPACE}/deploy/Dockerfile \\
-                        --destination=\${IMAGE_FULL_URI} \\
-                        --skip-tls-verify \\
-                        --insecure-pull
-                    """
-                    echo "Successfully built and pushed image to ECR: ${env.IMAGE_FULL_URI}"
+                    withEnv(["IMAGE_FULL_URI=${env.IMAGE_FULL_URI}"]) {
+                        sh """
+                        /kaniko/executor \
+                            --context=\${WORKSPACE}/deploy \
+                            --dockerfile=\${WORKSPACE}/deploy/Dockerfile \
+                            --destination=\${IMAGE_FULL_URI} \
+                            --skip-tls-verify \
+                            --insecure-pull
+                        """
+                    }
                 }
-            }
         }
     }
 }
