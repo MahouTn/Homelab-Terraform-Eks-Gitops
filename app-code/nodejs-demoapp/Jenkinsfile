@@ -1,43 +1,52 @@
+// Filename: Jenkinsfile
+// Description: CI/CD pipeline that uses a Kubernetes agent with the
+//              Kaniko Service Account (kaniko-sa) to securely build and
+//              push a Docker image to ECR using IRSA.
+
 pipeline {
+    // Defines where the pipeline runs (on the EKS cluster)
     agent {
         kubernetes {
             namespace 'ci-cd'
-            serviceAccount 'kaniko-sa' // Make sure this SA has IRSA permissions for ECR
-            containerTemplates([
+            serviceAccount 'kaniko-sa' 
+            
+            containerTemplates([ // NOTE: Must be containerTemplates, not containerTemplate
+                // The Kaniko container is the sidecar. It must be kept alive.
                 containerTemplate(
-                    name: 'docker',
-                    image: 'docker:24-dind',       // Docker-in-Docker image
-                    privileged: true,              // Required for DinD
-                    command: 'dockerd-entrypoint.sh',
-                    args: '--host=tcp://0.0.0.0:2375 --host=unix:///var/run/docker.sock'
+                    name: 'kaniko',
+                    image: 'gcr.io/kaniko-project/executor:latest', 
+                    tty: true,
+                    alwaysPullImage: true,
+                    // FINAL FIX (V2): The standard shell paths are failing. 
+                    // We directly call the 'sleep' binary, which is generally 
+                    // on the PATH in BusyBox-based images, to keep the container running.
+                    command: 'sleep',
+                    args: ['360000'] // Sleep for 100 hours
                 )
             ])
-            label 'docker-agent'
+            label 'kaniko-agent'
         }
     }
 
     environment {
+        // NOTE: I'm leaving the image URI hardcoded as per your provided pipeline.
         IMAGE_FULL_URI = '802617578034.dkr.ecr.eu-west-1.amazonaws.com/homelab-eks:latest'
-        AWS_DEFAULT_REGION = 'eu-west-1'
     }
 
     stages {
         stage('Build and Push Image') {
             steps {
-                container('docker') {
-                    sh '''
-                    # Login to ECR using IRSA (AWS CLI should be available in the container)
-                    aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin 802617578034.dkr.ecr.eu-west-1.amazonaws.com
-
-                    # Build Docker image
-                    docker build -t homelab-eks:latest ${WORKSPACE}/deploy
-
-                    # Tag image for ECR
-                    docker tag homelab-eks:latest $IMAGE_FULL_URI
-
-                    # Push image to ECR
-                    docker push $IMAGE_FULL_URI
-                    '''
+                // This step explicitly runs inside the Kaniko sidecar container
+                container('kaniko') {
+                    // Kaniko command to build and push
+                    sh """
+                    /kaniko/executor \\
+                        --context=\${WORKSPACE}/deploy \\
+                        --dockerfile=\${WORKSPACE}/deploy/Dockerfile \\
+                        --destination=\${IMAGE_FULL_URI} \\
+                        --skip-tls-verify \\
+                        --insecure-pull
+                    """
                 }
             }
         }
