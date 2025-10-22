@@ -16,29 +16,15 @@ pipeline {
     }
 
     environment {
+        // --- Static AWS & Image Variables ---
+        AWS_ACCOUNT_ID = '802617578034'
         AWS_REGION = 'eu-west-1'
         ECR_REPO = 'homelab-eks'
+        IMAGE_TAG = 'latest' // Or any static tag you want
+        IMAGE_FULL_URI = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}"
     }
 
     stages {
-        stage('Setup Environment') {
-            steps {
-                script {
-                    // Fetch AWS Account ID in JNLP container
-                    def accountId = sh(
-                        script: "aws sts get-caller-identity --query Account --output text",
-                        returnStdout: true
-                    ).trim()
-                    env.AWS_ACCOUNT_ID = accountId
-                    env.IMAGE_TAG = "${env.BUILD_NUMBER}"
-                    env.IMAGE_FULL_URI = "${accountId}.dkr.ecr.${env.AWS_REGION}.amazonaws.com/${env.ECR_REPO}:${env.IMAGE_TAG}"
-                    
-                    echo "AWS Account ID: ${env.AWS_ACCOUNT_ID}"
-                    echo "Image URI: ${env.IMAGE_FULL_URI}"
-                }
-            }
-        }
-
         stage('Build and Push Image') {
             steps {
                 container('kaniko') {
