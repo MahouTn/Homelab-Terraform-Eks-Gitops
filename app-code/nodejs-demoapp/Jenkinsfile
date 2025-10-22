@@ -61,6 +61,9 @@ spec:
       # FIX: Use printf to generate the JSON on a single line to avoid YAML parser errors
       printf '{"auths": {"%s": {"auth": "%s"}}}\n' "${ECR_URI}" "${AUTH_TOKEN}" > /root/.docker/config.json
       
+      # NEW FIX: Ensure the file is readable by non-root users (like the Kaniko container user)
+      chmod 644 /root/.docker/config.json
+      
       echo "Credentials successfully written to shared volume."
   
   # 3. Kaniko Container: The actual builder
