@@ -28,14 +28,13 @@ spec:
   - name: kaniko
     image: gcr.io/kaniko-project/executor:debug
     imagePullPolicy: IfNotPresent
-    # The command/args pattern to keep the sidecar running indefinitely
+    # FINAL FIX: Use the 'tail -f /dev/null' command via the shell. 
+    # This guarantees the container runs indefinitely.
     command:
      - /busybox/sh
      - -c
-     - "cat /dev/null"
+     - "tail -f /dev/null"
     tty: true
-    # Kaniko needs a volume mount for ECR credentials (if not using IRSA), 
-    # but we are using IRSA, so standard Kaniko usage works.
 '''
             // Set the container with the image builder utility as the default
             defaultContainer 'kaniko'
