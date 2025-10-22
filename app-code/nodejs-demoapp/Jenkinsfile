@@ -23,13 +23,13 @@ pipeline {
                 // so the Pod doesn't exit immediately after launch.
                 containerTemplate(
                     name: 'kaniko',
-                    image: 'gcr.io/kaniko-project/executor:debug', 
+                    image: 'gcr.io/kaniko-project/executor:latest', 
                     tty: true,
                     alwaysPullImage: true,
                     // --- CRITICAL FIX: Keep the container alive using the standard shell ---
                     // Kaniko does not have /busybox/sh, so we use /bin/sh.
-                    command: '/bin/bash',
-                    args: '-c sleep 9999999'
+                    command: '/kaniko/executor',  // run Kaniko directly
+                    args: []
                 )
             ])
             // Use the label from your old Jenkinsfile for agent matching
