@@ -3,18 +3,19 @@
 //              Kaniko Service Account (kaniko-sa) to securely build and
 //              push a Docker image to ECR using IRSA.
 //
-// NOTE: This version uses an Init Container and a shared volume for the most reliable credential injection.
+// NOTE: This version uses a YAML agent definition and the kaniko:debug image 
+// to avoid sidecar startup issues.
 
 pipeline {
+    // Define the environment variables outside the YAML agent block
     environment {
         // NOTE: I'm leaving the image URI hardcoded as per your provided pipeline.
         IMAGE_FULL_URI = '802617578034.dkr.ecr.eu-west-1.amazonaws.com/homelab-eks:latest'
-        REGISTRY_DOMAIN = '802617578034.dkr.ecr.eu-west-1.amazonaws.com'
-        AWS_REGION = 'eu-west-1' // Define region for AWS CLI
     }
 
     agent {
         kubernetes {
+            // Define the Kubernetes Pod using raw YAMl
             yaml '''
 kind: Pod
 metadata:
@@ -23,61 +24,13 @@ metadata:
 spec:
   # CRITICAL: This links the Pod to your AWS IAM Role (IRSA) for ECR access
   serviceAccountName: kaniko-sa 
-  
-  # 1. Define a volume to share the config.json file
-  volumes:
-  - name: docker-config-vol
-    emptyDir: {}
-    
-  # 2. Init Container: Runs once to generate ECR credentials before the main container starts
-  initContainers:
-  - name: aws-cli-setup
-    image: amazon/aws-cli:latest
-    imagePullPolicy: IfNotPresent
-    env:
-    - name: AWS_REGION
-      value: "eu-west-1" # Hardcoding for Init Container clarity
-    
-    # Mount the shared volume so the file is accessible to Kaniko
-    volumeMounts:
-    - name: docker-config-vol
-      mountPath: /root/.docker
-      
-    # Command to fetch the ECR password and write the credentials file
-    command: ["/bin/sh"]
-    args:
-    - "-c"
-    - |
-      echo "Fetching ECR credentials using IRSA..."
-      
-      # Fetch the temporary ECR password using the IRSA role
-      PASSWORD=$(aws ecr get-login-password --region $AWS_REGION)
-      ECR_URI=802617578034.dkr.ecr.eu-west-1.amazonaws.com
-
-      # Create the standard Docker config.json structure with the ECR auth token (base64 encoded)
-      mkdir -p /root/.docker
-      AUTH_TOKEN=$(echo -n "AWS:${PASSWORD}" | base64)
-
-      # FIX: Use printf to generate the JSON on a single line to avoid YAML parser errors
-      printf '{"auths": {"%s": {"auth": "%s"}}}\n' "${ECR_URI}" "${AUTH_TOKEN}" > /root/.docker/config.json
-      
-      # NEW FIX: Ensure the file is readable by non-root users (like the Kaniko container user)
-      chmod 644 /root/.docker/config.json
-      
-      echo "Credentials successfully written to shared volume."
-  
-  # 3. Kaniko Container: The actual builder
   containers:
   - name: kaniko
-    image: gcr.io/kaniko-project/executor:debug
+    image: gcr.io/kaniko-project/executor:alpine
     imagePullPolicy: IfNotPresent
     
-    # Mount the shared volume to access the pre-generated credentials
-    volumeMounts:
-    - name: docker-config-vol
-      mountPath: /kaniko/.docker # Kaniko looks in this path for config.json
-      
     # FIX: Use the 'tail -f /dev/null' command via the shell. 
+    # This guarantees the container runs indefinitely and becomes ready.
     command:
      - /busybox/sh
      - -c
@@ -92,17 +45,20 @@ spec:
     stages {
         stage('Build and Push Image') {
             steps {
+                // The main pipeline stage runs inside the 'kaniko' container
                 container('kaniko'){
-                    // NOTE: The 'aws-cli' installation steps are now in the Init Container and removed here.
-                    
-                    // 3. Run Kaniko using the explicit config file
+                    // Kaniko command to build and push. 
                     sh """
+                    # Extract the registry domain (e.g., 802617578034.dkr.ecr.eu-west-1.amazonaws.com)
+                    # from the full URI to use with the skip-tls flag and registry mirror.
+                    REGISTRY_DOMAIN=\$(echo \${IMAGE_FULL_URI} | cut -d/ -f1)
+                    
                     /kaniko/executor \\
                         --context=\${WORKSPACE}/app-code/nodejs-demoapp/build \\
                         --dockerfile=./Dockerfile \\
                         --destination=\${IMAGE_FULL_URI} \\
-                        --dockerfile-config=/kaniko/.docker/config.json \\
-                        --skip-tls-verify-registry=\${REGISTRY_DOMAIN}
+                        --skip-tls-verify-registry=\${REGISTRY_DOMAIN} \\
+                        --registry-mirror=\${REGISTRY_DOMAIN}
                     """
                 }
             }
