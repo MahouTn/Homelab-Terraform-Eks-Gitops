@@ -13,7 +13,7 @@ metadata:
   name: docker-agent
   namespace: ci-cd
 spec:
-  serviceAccountName: jenkins-sa  # normal Jenkins SA
+  serviceAccountName: kaniko-sa  # normal Jenkins SA
   containers:
   - name: docker
     image: docker:24-dind
