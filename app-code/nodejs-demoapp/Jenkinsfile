@@ -17,11 +17,10 @@ pipeline {
                     image: 'gcr.io/kaniko-project/executor:latest', 
                     tty: true,
                     alwaysPullImage: true,
-                    // FINAL FIX (V2): The standard shell paths are failing. 
-                    // We directly call the 'sleep' binary, which is generally 
-                    // on the PATH in BusyBox-based images, to keep the container running.
+                    // FIX: Changed args from Groovy Array to expected String format.
+                    // This should resolve the ClassCastException.
                     command: 'sleep',
-                    args: ['360000'] // Sleep for 100 hours
+                    args: '360000' // The Kubernetes plugin expects a single string here.
                 )
             ])
             label 'kaniko-agent'
