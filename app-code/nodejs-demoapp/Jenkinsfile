@@ -9,8 +9,8 @@ pipeline {
                     image: 'gcr.io/kaniko-project/executor:latest',
                     tty: true,
                     alwaysPullImage: true,
-                    command: '/busybox/sh', // keep alive
-                    args: '-c "sleep 99999"'
+                    command: '/kaniko/executor', // keep alive
+                    args: ''
                 )
             ])
             label 'kaniko-agent'
