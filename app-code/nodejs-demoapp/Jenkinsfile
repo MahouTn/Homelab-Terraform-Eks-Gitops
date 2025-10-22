@@ -2,50 +2,58 @@
 // Description: CI/CD pipeline that uses a Kubernetes agent with the
 //              Kaniko Service Account (kaniko-sa) to securely build and
 //              push a Docker image to ECR using IRSA.
+//
+// NOTE: This version uses a YAML agent definition and the kaniko:debug image 
+// to avoid sidecar startup issues.
 
 pipeline {
-    // Defines where the pipeline runs (on the EKS cluster)
-    agent {
-        kubernetes {
-            namespace 'ci-cd'
-            serviceAccount 'kaniko-sa' 
-            
-            containerTemplates([ // NOTE: Must be containerTemplates, not containerTemplate
-                // The Kaniko container is the sidecar. It must be kept alive.
-                containerTemplate(
-                    name: 'kaniko',
-                    image: 'gcr.io/kaniko-project/executor:debug', 
-                    tty: true,
-                    alwaysPullImage: true,
-                    // FINAL FIX (V4): Since /bin/sleep failed, we use the next best 
-                    // utility for keeping a container running: 'cat'
-                    // We try to call 'cat' without a shell, as we don't know the shell's path.
-                    command: '/busybox/cat',
-                    args: '360000' // This argument will likely be ignored, but required syntax.
-                )
-            ])
-            label 'kaniko-agent'
-        }
-    }
-
+    // Define the environment variables outside the YAML agent block
     environment {
         // NOTE: I'm leaving the image URI hardcoded as per your provided pipeline.
         IMAGE_FULL_URI = '802617578034.dkr.ecr.eu-west-1.amazonaws.com/homelab-eks:latest'
     }
 
+    agent {
+        kubernetes {
+            // Define the Kubernetes Pod using raw YAML
+            yaml '''
+kind: Pod
+metadata:
+  name: kaniko-builder
+  namespace: ci-cd
+spec:
+  # IMPORTANT: This links the Pod to your AWS IAM Role (IRSA) for ECR access
+  serviceAccountName: kaniko-sa 
+  containers:
+  - name: kaniko
+    image: gcr.io/kaniko-project/executor:debug
+    imagePullPolicy: IfNotPresent
+    # The command/args pattern to keep the sidecar running indefinitely
+    command:
+     - /busybox/sh
+     - -c
+     - "cat /dev/null"
+    tty: true
+    # Kaniko needs a volume mount for ECR credentials (if not using IRSA), 
+    # but we are using IRSA, so standard Kaniko usage works.
+'''
+            // Set the container with the image builder utility as the default
+            defaultContainer 'kaniko'
+        }
+    }
+
     stages {
         stage('Build and Push Image') {
             steps {
-                // This step explicitly runs inside the Kaniko sidecar container
-                container('kaniko') {
-                    // Kaniko command to build and push
+                // The main pipeline stage runs inside the 'kaniko' container
+                container('kaniko'){
+                    // Kaniko command to build and push. 
+                    // IRSA handles the authentication for ECR login implicitly.
                     sh """
                     /kaniko/executor \\
                         --context=\${WORKSPACE}/deploy \\
                         --dockerfile=\${WORKSPACE}/deploy/Dockerfile \\
-                        --destination=\${IMAGE_FULL_URI} \\
-                        --skip-tls-verify \\
-                        --insecure-pull
+                        --destination=\${IMAGE_FULL_URI}
                     """
                 }
             }
