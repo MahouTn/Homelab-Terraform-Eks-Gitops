@@ -3,7 +3,7 @@
 //              Kaniko Service Account (kaniko-sa) to securely build and
 //              push a Docker image to ECR using IRSA.
 //
-// NOTE: This version forces authentication using AWS CLI explicitly inside the Kaniko container.
+// NOTE: This version uses an Init Container and a shared volume for the most reliable credential injection.
 
 pipeline {
     environment {
@@ -23,11 +23,61 @@ metadata:
 spec:
   # CRITICAL: This links the Pod to your AWS IAM Role (IRSA) for ECR access
   serviceAccountName: kaniko-sa 
+  
+  # 1. Define a volume to share the config.json file
+  volumes:
+  - name: docker-config-vol
+    emptyDir: {}
+    
+  # 2. Init Container: Runs once to generate ECR credentials before the main container starts
+  initContainers:
+  - name: aws-cli-setup
+    image: amazon/aws-cli:latest
+    imagePullPolicy: IfNotPresent
+    env:
+    - name: AWS_REGION
+      value: "eu-west-1" # Hardcoding for Init Container clarity
+    
+    # Mount the shared volume so the file is accessible to Kaniko
+    volumeMounts:
+    - name: docker-config-vol
+      mountPath: /root/.docker
+      
+    # Command to fetch the ECR password and write the credentials file
+    command: ["/bin/sh"]
+    args:
+    - "-c"
+    - |
+      echo "Fetching ECR credentials using IRSA..."
+      
+      # Fetch the temporary ECR password using the IRSA role
+      PASSWORD=$(aws ecr get-login-password --region $AWS_REGION)
+      ECR_URI=802617578034.dkr.ecr.eu-west-1.amazonaws.com
+
+      # Create the standard Docker config.json structure with the ECR auth token (base64 encoded)
+      mkdir -p /root/.docker
+      cat <<EOF > /root/.docker/config.json
+{
+    "auths": {
+        "\${ECR_URI}": {
+            "auth": "\$(echo -n "AWS:\${PASSWORD}" | base64)"
+        }
+    }
+}
+EOF
+      echo "Credentials successfully written to shared volume."
+  
+  # 3. Kaniko Container: The actual builder
   containers:
   - name: kaniko
-    image: gcr.io/kaniko-project/executor:v1.23.2-debug
+    image: gcr.io/kaniko-project/executor:debug
     imagePullPolicy: IfNotPresent
     
+    # Mount the shared volume to access the pre-generated credentials
+    volumeMounts:
+    - name: docker-config-vol
+      mountPath: /kaniko/.docker # Kaniko looks in this path for config.json
+      
     # FIX: Use the 'tail -f /dev/null' command via the shell. 
     command:
      - /busybox/sh
@@ -44,17 +94,7 @@ spec:
         stage('Build and Push Image') {
             steps {
                 container('kaniko'){
-                    // 1. Install AWS CLI using apk (since we use the debug image)
-                    sh 'apk add --no-cache aws-cli'
-
-                    // 2. Use AWS CLI to get the ECR login password and write the credentials 
-                    //    directly to the location where Kaniko expects a config.json file.
-                    sh """
-                    aws ecr get-login-password --region \${AWS_REGION} | \
-                    /kaniko/docker-creds-helper \
-                    --ecr-uri \${REGISTRY_DOMAIN} \
-                    > /kaniko/.docker/config.json
-                    """
+                    // NOTE: The 'aws-cli' installation steps are now in the Init Container and removed here.
                     
                     // 3. Run Kaniko using the explicit config file
                     sh """
@@ -63,8 +103,7 @@ spec:
                         --dockerfile=./Dockerfile \\
                         --destination=\${IMAGE_FULL_URI} \\
                         --dockerfile-config=/kaniko/.docker/config.json \\
-                        --skip-tls-verify-registry=\${REGISTRY_DOMAIN} \\
-                        --registry-mirror=\${REGISTRY_DOMAIN}
+                        --skip-tls-verify-registry=\${REGISTRY_DOMAIN}
                     """
                 }
             }
