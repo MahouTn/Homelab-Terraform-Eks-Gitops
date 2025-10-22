@@ -50,8 +50,8 @@ spec:
                     // FIX: Changed --dockerfile to use a path RELATIVE to --context.
                     sh """
                     /kaniko/executor \\
-                        --context=\${WORKSPACE}/deploy \\
-                        --dockerfile=./Dockerfile \\
+                        --context=\${WORKSPACE}/app-code/nodejs-demoapp/deploy \\
+                        --dockerfile=Dockerfile \\
                         --destination=\${IMAGE_FULL_URI}
                     """
                 }
