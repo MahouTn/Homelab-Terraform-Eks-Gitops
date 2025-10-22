@@ -28,6 +28,13 @@ spec:
   - name: kaniko
     image: gcr.io/kaniko-project/executor:debug
     imagePullPolicy: IfNotPresent
+    # FIX 1: Explicitly defining AWS environment variables to ensure IRSA works correctly
+    env:
+      - name: AWS_REGION
+        value: "eu-west-1"
+      - name: AWS_SDK_LOAD_CONFIG
+        value: "1" # Tells AWS SDKs to look for web identity tokens
+
     # FINAL FIX: Use the 'tail -f /dev/null' command via the shell. 
     # This guarantees the container runs indefinitely.
     command:
@@ -47,7 +54,9 @@ spec:
                 // The main pipeline stage runs inside the 'kaniko' container
                 container('kaniko'){
                     // Kaniko command to build and push. 
-                    // FIX: Changed --dockerfile to use a path RELATIVE to --context.
+                    // FIX: Using the explicit relative path './Dockerfile' which is often more robust 
+                    // than 'Dockerfile' when combined with the absolute context path.
+                    // Kaniko uses the /var/run/secrets/eks.amazonaws.com/serviceaccount/token for ECR auth.
                     sh """
                     /kaniko/executor \\
                         --context=\${WORKSPACE}/app-code/nodejs-demoapp/build \\
