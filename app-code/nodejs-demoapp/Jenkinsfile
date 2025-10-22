@@ -9,8 +9,8 @@ pipeline {
                     image: 'gcr.io/kaniko-project/executor:latest',
                     tty: true,
                     alwaysPullImage: true,
-                    command: '/kaniko/executor', // keep alive
-                    args: ''
+                    command: '/kaniko/executor',
+                    args: ''  // leave empty
                 )
             ])
             label 'kaniko-agent'
@@ -18,10 +18,6 @@ pipeline {
     }
 
     environment {
-        AWS_REGION = 'eu-west-1'
-        ECR_REPO = 'homelab-eks'
-        AWS_ACCOUNT_ID = '802617578034'
-        IMAGE_TAG = 'latest'
         IMAGE_FULL_URI = '802617578034.dkr.ecr.eu-west-1.amazonaws.com/homelab-eks:latest'
     }
 
@@ -31,9 +27,9 @@ pipeline {
                 container('kaniko') {
                     sh """
                     /kaniko/executor \
-                        --context=\${WORKSPACE}/deploy \
-                        --dockerfile=\${WORKSPACE}/deploy/Dockerfile \
-                        --destination=\${IMAGE_FULL_URI} \
+                        --context=/workspace/deploy \
+                        --dockerfile=/workspace/deploy/Dockerfile \
+                        --destination=802617578034.dkr.ecr.eu-west-1.amazonaws.com/homelab-eks:latest \
                         --skip-tls-verify \
                         --insecure-pull
                     """
