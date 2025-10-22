@@ -1,53 +1,65 @@
+// Filename: Jenkinsfile
+// Description: CI/CD pipeline that uses a Kubernetes agent with the
+//              Kaniko Service Account (kaniko-sa) to securely build and
+//              push a Docker image to ECR using IRSA.
+//
+// NOTE: This version uses a YAML agent definition and the kaniko:debug image 
+// to avoid sidecar startup issues.
+
 pipeline {
+    // Define the environment variables outside the YAML agent block
     environment {
+        // NOTE: I'm leaving the image URI hardcoded as per your provided pipeline.
         IMAGE_FULL_URI = '802617578034.dkr.ecr.eu-west-1.amazonaws.com/homelab-eks:latest'
-        AWS_REGION = 'eu-west-1'
     }
 
     agent {
         kubernetes {
-            yaml """
-apiVersion: v1
+            // Define the Kubernetes Pod using raw YAMl
+            yaml '''
 kind: Pod
 metadata:
-  name: docker-agent
+  name: kaniko-builder
   namespace: ci-cd
 spec:
-  serviceAccountName: kaniko-sa  # normal Jenkins SA
+  # CRITICAL: This links the Pod to your AWS IAM Role (IRSA) for ECR access
+  serviceAccountName: kaniko-sa 
   containers:
-  - name: docker
-    image: docker:24-dind
-    securityContext:
-      privileged: true             # needed for DinD
+  - name: kaniko
+    image: gcr.io/kaniko-project/executor:v1.23.2-debug
+    imagePullPolicy: IfNotPresent
+    
+    # FIX: Use the 'tail -f /dev/null' command via the shell. 
+    # This guarantees the container runs indefinitely and becomes ready.
     command:
-      - dockerd-entrypoint.sh
-    args:
-      - --host=tcp://0.0.0.0:2375 --host=unix:///var/run/docker.sock
+     - /busybox/sh
+     - -c
+     - "tail -f /dev/null"
     tty: true
-"""
-            defaultContainer 'docker'
+'''
+            // Set the container with the image builder utility as the default
+            defaultContainer 'kaniko'
         }
     }
 
     stages {
         stage('Build and Push Image') {
             steps {
-                container('docker') {
-                    sh '''
-                    # Install AWS CLI
-                    apk add --no-cache python3 py3-pip
-                    pip3 install awscli --upgrade
-
-                    # Authenticate Docker to ECR
-                    aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin 802617578034.dkr.ecr.eu-west-1.amazonaws.com
-
-                    # Build the Docker image
-                    docker build -t homelab-eks:latest ${WORKSPACE}/app-code/nodejs-demoapp/build
-
-                    # Tag and push to ECR
-                    docker tag homelab-eks:latest $IMAGE_FULL_URI
-                    docker push $IMAGE_FULL_URI
-                    '''
+                // The main pipeline stage runs inside the 'kaniko' container
+                container('kaniko'){
+                    // Kaniko command to build and push. 
+                    sh """
+                    # Extract the registry domain (e.g., 802617578034.dkr.ecr.eu-west-1.amazonaws.com)
+                    # from the full URI to use with the skip-tls flag and registry mirror.
+                    REGISTRY_DOMAIN=\$(echo \${IMAGE_FULL_URI} | cut -d/ -f1)
+                    
+                    /kaniko/executor \\
+                        --context=\${WORKSPACE}/app-code/nodejs-demoapp/build \\
+                        --dockerfile=./Dockerfile \\
+                        --destination=\${IMAGE_FULL_URI} \\
+                        --skip-tls-verify-registry=\${REGISTRY_DOMAIN} \\
+                        --registry-mirror=\${REGISTRY_DOMAIN}
+                    """
                 }
             }
         }
