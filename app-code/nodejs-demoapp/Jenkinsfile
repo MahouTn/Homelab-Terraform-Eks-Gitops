@@ -47,11 +47,11 @@ spec:
                 // The main pipeline stage runs inside the 'kaniko' container
                 container('kaniko'){
                     // Kaniko command to build and push. 
-                    // IRSA handles the authentication for ECR login implicitly.
+                    // FIX: Changed --dockerfile to use a path RELATIVE to --context.
                     sh """
                     /kaniko/executor \\
                         --context=\${WORKSPACE}/deploy \\
-                        --dockerfile=\${WORKSPACE}/deploy/Dockerfile \\
+                        --dockerfile=Dockerfile \\
                         --destination=\${IMAGE_FULL_URI}
                     """
                 }
