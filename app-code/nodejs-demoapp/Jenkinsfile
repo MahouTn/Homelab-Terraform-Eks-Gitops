@@ -14,7 +14,7 @@ spec:
   serviceAccountName: kaniko-sa
   containers:
   - name: kaniko
-    image: gcr.io/kaniko-project/executor:v1.23.2
+    image: gcr.io/kaniko-project/executor:v1.23.2-debug
     command:
       - /busybox/sh
       - -c
