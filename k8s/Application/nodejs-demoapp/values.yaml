@@ -1,0 +1,34 @@
+replicaCount: 2
+
+image:
+  repository: 802617578034.dkr.ecr.eu-west-1.amazonaws.com/homelab-eks
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+service:
+  type: ClusterIP
+  port: 3000
+
+ingress:
+  enabled: false
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+serviceAccount:
+  create: true
+  name: ""
+
+httpRoute:
+  enabled: false
+
+autoscaling:
+  enabled: false        # or true if you want HPA
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80

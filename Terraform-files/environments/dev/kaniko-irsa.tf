@@ -14,24 +14,24 @@ data "aws_eks_cluster" "eks_cluster" {
 resource "aws_iam_policy" "kaniko_ecr_policy" {
   name        = "KanikoECRPolicy-${local.cluster_name}"
   description = "Allows Kaniko to authenticate and push to ECR."
-  
+
   policy = jsonencode({
     Version = "2012-10-17",
     Statement = [
       # --- STATEMENT 1 (CRITICAL FIX): GetAuthorizationToken must use Resource: "*" ---
       {
-        "Sid": "ECRAuthToken",
-        "Effect": "Allow",
-        "Action": [
+        "Sid" : "ECRAuthToken",
+        "Effect" : "Allow",
+        "Action" : [
           "ecr:GetAuthorizationToken"
         ],
-        "Resource": "*" 
+        "Resource" : "*"
       },
       # --- STATEMENT 2: Repository actions constrained to the repository ARN ---
       {
-        "Sid": "ECRPushActions",
-        "Effect": "Allow",
-        "Action": [
+        "Sid" : "ECRPushActions",
+        "Effect" : "Allow",
+        "Action" : [
           "ecr:BatchCheckLayerAvailability",
           "ecr:PutImage",
           "ecr:InitiateLayerUpload",
@@ -39,7 +39,7 @@ resource "aws_iam_policy" "kaniko_ecr_policy" {
           "ecr:CompleteLayerUpload"
         ],
         # Restrict access to all ECR repositories in the current region/account
-        "Resource": "arn:aws:ecr:${data.aws_eks_cluster.eks_cluster.region}:${data.aws_caller_identity.current.account_id}:repository/*"
+        "Resource" : "arn:aws:ecr:${data.aws_eks_cluster.eks_cluster.region}:${data.aws_caller_identity.current.account_id}:repository/*"
       },
     ]
   })
@@ -47,8 +47,8 @@ resource "aws_iam_policy" "kaniko_ecr_policy" {
 
 # 2. IAM Role: Assumable by the Kaniko Kubernetes Service Account
 resource "aws_iam_role" "kaniko_irsa_role" {
-  name              = "KanikoECRPushRole-${local.cluster_name}"
-  
+  name = "KanikoECRPushRole-${local.cluster_name}"
+
   # The Trust Policy must allow the OIDC provider (EKS) to assume this role.
   assume_role_policy = jsonencode({
     Version = "2012-10-17",
@@ -57,13 +57,14 @@ resource "aws_iam_role" "kaniko_irsa_role" {
         Effect = "Allow",
         Principal = {
           # FIX: Apply trimprefix here to ensure the Federated principal is a valid domain name
-          Federated = trimprefix(data.aws_eks_cluster.eks_cluster.identity[0].oidc[0].issuer, "https://")
+          Federated = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/${trimprefix(data.aws_eks_cluster.eks_cluster.identity[0].oidc[0].issuer,"https://")}"
         },
         Action = "sts:AssumeRoleWithWebIdentity",
         Condition = {
           StringEquals = {
             # Note: The issuer URL in the condition check (OIDC provider ARN) *must* include the https:// prefix.
-            "${trimprefix(data.aws_eks_cluster.eks_cluster.identity[0].oidc[0].issuer, "https://")}:sub": "system:serviceaccount:ci-cd:kaniko-sa"
+            "${trimprefix(data.aws_eks_cluster.eks_cluster.identity[0].oidc[0].issuer, "https://")}:sub" : "system:serviceaccount:ci-cd:kaniko-sa"
+            "${trimprefix(data.aws_eks_cluster.eks_cluster.identity[0].oidc[0].issuer, "https://")}:aud" = "sts.amazonaws.com"
           }
         }
       },

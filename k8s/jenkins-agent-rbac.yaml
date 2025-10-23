@@ -1,0 +1,45 @@
+# Filename: jenkins-agent-rbac.yaml
+# Description: Role and RoleBinding to grant the Jenkins Controller (running in the 'jenkins'
+#              namespace) the necessary permissions to create and manage agent pods 
+#              in the 'ci-cd' namespace.
+
+---
+# 1. Role Definition in the target namespace (ci-cd)
+# This defines WHAT permissions are granted.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: jenkins-pod-manager
+  namespace: ci-cd
+rules:
+# Permissions required by the Kubernetes Plugin to create, manage, and monitor agent Pods.
+- apiGroups: [""]
+  resources: ["pods", "pods/exec", "pods/log"]
+  # The plugin requires the ability to create, list, get, watch, and delete pods
+  # to manage the lifecycle of the Kaniko agent.
+  verbs: ["create", "get", "delete", "list", "watch", "update"]
+  
+# It is also good practice to allow the agent to fetch any necessary secrets
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get"]
+  
+---
+
+# 2. RoleBinding Definition in the target namespace (ci-cd)
+# This defines WHO gets the permissions (the Jenkins controller SA) and which Role grants them.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: jenkins-pod-manager-binding
+  namespace: ci-cd # The namespace where the permissions are being granted
+subjects:
+# Reference to the Jenkins controller ServiceAccount 
+# (assumes the controller runs in the 'jenkins' namespace with SA name 'jenkins')
+- kind: ServiceAccount
+  name: jenkins 
+  namespace: jenkins # The namespace where the Jenkins controller is running
+roleRef:
+  kind: Role
+  name: jenkins-pod-manager
+  apiGroup: rbac.authorization.k8s.io

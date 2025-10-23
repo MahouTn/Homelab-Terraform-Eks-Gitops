@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nodejs-demoapp
+  namespace: ci-cd
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nodejs-demoapp
+  template:
+    metadata:
+      labels:
+        app: nodejs-demoapp
+    spec:
+      containers:
+      - name: nodejs-demoapp
+        image: 802617578034.dkr.ecr.eu-west-1.amazonaws.com/homelab-eks:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3000

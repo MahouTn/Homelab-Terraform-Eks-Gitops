@@ -1,0 +1,28 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jenkins-ingress
+  namespace: jenkins
+  annotations:
+    # 1. Specifies the AWS ALB Ingress Controller should handle this resource
+    kubernetes.io/ingress.class: "alb"
+    # 2. Creates a public (internet-facing) ALB in your public subnets
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    # 3. Directs traffic to the Pod IP, bypassing NodePorts (CRITICAL FIX)
+    alb.ingress.kubernetes.io/target-type: ip
+    # 4. Standard settings for Jenkins health and routing
+    alb.ingress.kubernetes.io/backend-protocol: HTTP
+    alb.ingress.kubernetes.io/healthcheck-path: /login
+    alb.ingress.kubernetes.io/healthcheck-port: "8080"
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: jenkins   # The name of your Jenkins ClusterIP service
+                port:
+                  number: 8080 # The port the Jenkins Pod is listening on

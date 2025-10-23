@@ -19,7 +19,18 @@ module "eks" {
 
 }
 
+module "lb_iam" {
+  source       = "./iam"
+  cluster_name = module.eks.cluster_name
+  oidc_issuer  = module.eks.oidc_issuer_url
+}
 
+
+locals {
+  # CRITICAL: Assuming your EKS module call is named 'eks'.
+  # This makes the cluster name available for use in other resources (like IRSA roles).
+  cluster_name = module.eks.cluster_name
+}
 
 
 
