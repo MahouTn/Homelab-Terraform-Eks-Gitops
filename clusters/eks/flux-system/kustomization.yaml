@@ -4,7 +4,7 @@ metadata:
   name: nodejs-app
   namespace: flux-system
 spec:
-  interval: 5m
+  interval: 1m
   path: ./clusters/eks/flux-system/nodejs-app
   prune: true
   sourceRef:
