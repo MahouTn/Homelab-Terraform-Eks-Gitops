@@ -33,42 +33,40 @@ spec:
         IMAGE_REGISTRY = '802617578034.dkr.ecr.eu-west-1.amazonaws.com/homelab-eks'
         APP_PATH = "${WORKSPACE}/app-code/nodejs-demoapp"
         HELM_APP_PATH = "${WORKSPACE}/k8s/Application/nodejs-demoapp"
+        IMAGE_TAG = "${GIT_COMMIT}"  // Use commit SHA as tag
+        IMAGE_FULL_URI = "${IMAGE_REGISTRY}:${IMAGE_TAG}"
     }
 
     stages {
         stage('Build and Push Docker Image') {
             steps {
                 container('kaniko') {
-                    script {
-                        IMAGE_TAG = "${GIT_COMMIT}"
-                        IMAGE_FULL_URI = "${IMAGE_REGISTRY}:${IMAGE_TAG}"
-
-                        sh """
-                        /kaniko/executor \
-                            --context=${APP_PATH}/build \
-                            --dockerfile=${APP_PATH}/Dockerfile \
-                            --destination=${IMAGE_FULL_URI}
-                        """
-                    }
+                    sh """
+                    /kaniko/executor \
+                        --context=${APP_PATH}/build \
+                        --dockerfile=./Dockerfile \
+                        --destination=${IMAGE_FULL_URI}
+                    """
                 }
             }
         }
 
-        stage('Update Helm values.yaml and Push') {
+        stage('Update Helm Chart and Push') {
             steps {
                 container('git') {
                     script {
                         withCredentials([usernamePassword(credentialsId: 'github-creds', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_TOKEN')]) {
                             sh """
-                            git config user.name "MahouTn"
-                            git config user.email "ayoub.mahoutn@gmail.com"
+                            git config user.name "Jenkins"
+                            git config user.email "jenkins@yourdomain.com"
                             git remote set-url origin https://${GIT_USER}:${GIT_TOKEN}@github.com/MahouTn/Homelab-Terraform-Eks-Gitops.git
 
+                            # Update image tag in values.yaml
                             sed -i "s|tag:.*|tag: ${IMAGE_TAG}|g" ${HELM_APP_PATH}/values.yaml
 
                             git add ${HELM_APP_PATH}/values.yaml
                             git commit -m "Update image tag to ${IMAGE_TAG}"
-                            git push origin main
+                            git push origin main || echo "No changes to commit"
                             """
                         }
                     }
