@@ -8,6 +8,10 @@ spec:
   chart:
     spec:
       chart: ../../../k8s/Application/nodejs-demoapp  # relative path from clusters/eks/
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+        namespace: flux-system
   valuesFrom:
     - kind: ConfigMap       # must reference a ConfigMap
       name: nodejs-demoapp-values
