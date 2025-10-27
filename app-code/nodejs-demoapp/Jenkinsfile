@@ -50,30 +50,38 @@ spec:
                 }
             }
         }
-
-        stage('Update Helm Chart and Push') {
-    steps {
-        container('git') {
-            dir("${WORKSPACE}") {  // <-- make sure we are in the repo
-                script {
-                    withCredentials([usernamePassword(credentialsId: 'github-creds', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_TOKEN')]) {
-                        sh """
-                        git config user.name "Jenkins"
-                        git config user.email "jenkins@yourdomain.com"
-                        git remote set-url origin https://${GIT_USER}:${GIT_TOKEN}@github.com/MahouTn/Homelab-Terraform-Eks-Gitops.git
-
-                        # Update image tag in values.yaml
-                        sed -i "s|tag:.*|tag: ${IMAGE_TAG}|g" ${HELM_APP_PATH}/values.yaml
-
-                        git add ${HELM_APP_PATH}/values.yaml
-                        git commit -m "Update image tag to ${IMAGE_TAG}" || echo "No changes to commit"
-                        git push origin main || echo "Nothing to push"
-                        """
-                    }
+        stage('Checkout Repository') {
+            steps {
+                container('git') {
+                    checkout scm
                 }
             }
         }
-    }
+
+
+        stage('Update Helm Chart and Push') {
+            steps {
+                container('git') {
+                    dir("${WORKSPACE}") {  // <-- make sure we are in the repo
+                        script {
+                            withCredentials([usernamePassword(credentialsId: 'github-creds', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_TOKEN')]) {
+                                sh """
+                                git config user.name "Jenkins"
+                                git config user.email "jenkins@yourdomain.com"
+                                git remote set-url origin https://${GIT_USER}:${GIT_TOKEN}@github.com/MahouTn/Homelab-Terraform-Eks-Gitops.git
+
+                                # Update image tag in values.yaml
+                                sed -i "s|tag:.*|tag: ${IMAGE_TAG}|g" ${HELM_APP_PATH}/values.yaml
+
+                                git add ${HELM_APP_PATH}/values.yaml
+                                git commit -m "Update image tag to ${IMAGE_TAG}" || echo "No changes to commit"
+                                git push origin main || echo "Nothing to push"
+                                """
+                            }
+                        }
+                    }
+                }
+            }
 }
 }
 }
