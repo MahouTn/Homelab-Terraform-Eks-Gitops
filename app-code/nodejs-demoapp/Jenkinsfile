@@ -8,6 +8,9 @@ metadata:
   namespace: ci-cd
 spec:
   serviceAccountName: kaniko-sa
+  volumes:
+    - name: workspace-volume
+      emptyDir: {}
   containers:
   - name: kaniko
     image: gcr.io/kaniko-project/executor:v1.23.2-debug
@@ -16,9 +19,20 @@ spec:
       - -c
       - "tail -f /dev/null"
     tty: true
+    volumeMounts:
+      - name: workspace-volume
+        mountPath: /workspace
     env:
       - name: AWS_SDK_LOAD_CONFIG
         value: "true"
+  - name: git
+    image: alpine/git:latest
+    command:
+      - cat
+    tty: true
+    volumeMounts:
+      - name: workspace-volume
+        mountPath: /workspace
 '''
             defaultContainer 'kaniko'
         }
@@ -56,21 +70,22 @@ spec:
 
         stage('Update Helm Chart and Push') {
             steps {
-                container('kaniko') {
+                container('git') {
                     script {
                         withCredentials([usernamePassword(credentialsId: 'github-creds', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_TOKEN')]) {
                             sh """
-                            apt-get update
-                            apt-get install -y git
-                            git config user.name "MahouTn"
-                            git config user.email "ayoub.mahou@gmail.com"
-                            git remote set-url origin https://${GIT_USER}:${GIT_TOKEN}@github.com/MahouTn/Homelab-Terraform-Eks-Gitops.git
+                            cd /workspace
+                            git clone https://${GIT_USER}:${GIT_TOKEN}@github.com/MahouTn/Homelab-Terraform-Eks-Gitops.git
+                            cd Homelab-Terraform-Eks-Gitops
 
-                            # Update image tag in values.yaml
-                            sed -i "s|tag:.*|tag: ${IMAGE_TAG}|g" ${HELM_APP_PATH}/values.yaml
+                            # Update Helm chart values.yaml
+                            sed -i "s|tag:.*|tag: ${GIT_COMMIT}|g" k8s/Application/nodejs-demoapp/values.yaml
 
-                            git add ${HELM_APP_PATH}/values.yaml
-                            git commit -m "Update image tag to ${IMAGE_TAG}" || echo "No changes to commit"
+                            git config user.name "Jenkins"
+                            git config user.email "jenkins@yourdomain.com"
+
+                            git add k8s/Application/nodejs-demoapp/values.yaml
+                            git commit -m "Update image tag to ${GIT_COMMIT}" || echo "No changes to commit"
                             git push origin main || echo "Nothing to push"
                             """
                         }
