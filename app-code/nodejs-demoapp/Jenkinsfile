@@ -1,8 +1,4 @@
 pipeline {
-    environment {
-        IMAGE_FULL_URI = '802617578034.dkr.ecr.eu-west-1.amazonaws.com/homelab-eks:latest'
-    }
-
     agent {
         kubernetes {
             yaml '''
@@ -23,22 +19,56 @@ spec:
     env:
       - name: AWS_SDK_LOAD_CONFIG
         value: "true"
-
 '''
             defaultContainer 'kaniko'
         }
     }
 
+    environment {
+        IMAGE_REGISTRY = '802617578034.dkr.ecr.eu-west-1.amazonaws.com/homelab-eks'
+        APP_PATH = "${WORKSPACE}/app-code/nodejs-demoapp"
+    }
+
     stages {
-        stage('Build and Push Image') {
+        stage('Build and Push Docker Image') {
             steps {
                 container('kaniko') {
-                    sh """
-                    /kaniko/executor \
-                        --context=${WORKSPACE}/app-code/nodejs-demoapp/build \
-                        --dockerfile=./Dockerfile \
-                        --destination=${IMAGE_FULL_URI}
-                    """
+                    script {
+                        IMAGE_TAG = "${GIT_COMMIT}"
+                        IMAGE_FULL_URI = "${IMAGE_REGISTRY}:${IMAGE_TAG}"
+
+                        sh """
+                        /kaniko/executor \
+                            --context=${APP_PATH}/build \
+                            --dockerfile=./Dockerfile \
+                            --destination=${IMAGE_FULL_URI}
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Update Helm values.yaml and Push to Git') {
+            steps {
+                container('kaniko') {
+                    script {
+                        withCredentials([usernamePassword(credentialsId: 'github-creds', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_TOKEN')]) {
+                            sh """
+                            # Update image tag in values.yaml
+                            sed -i "s|tag:.*|tag: ${IMAGE_TAG}|g" ${APP_PATH}/values.yaml
+
+                            # Configure git
+                            git config user.name "MahouTn"
+                            git config user.email "ayoub.mahoutn@gmail.com"
+                            git remote set-url origin https://${GIT_USER}:${GIT_TOKEN}@github.com/MahouTn/Homelab-Terraform-Eks-Gitops.git
+
+                            # Commit and push changes
+                            git add ${APP_PATH}/values.yaml
+                            git commit -m "Update image tag to ${IMAGE_TAG}"
+                            git push origin main
+                            """
+                        }
+                    }
                 }
             }
         }
