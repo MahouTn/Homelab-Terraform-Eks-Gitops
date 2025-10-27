@@ -27,6 +27,7 @@ spec:
     environment {
         IMAGE_REGISTRY = '802617578034.dkr.ecr.eu-west-1.amazonaws.com/homelab-eks'
         APP_PATH = "${WORKSPACE}/app-code/nodejs-demoapp"
+        helm_app_path = "${WORKSPACE}/k8s/Application/nodejs-demoapp"
     }
 
     stages {
@@ -55,7 +56,7 @@ spec:
                         withCredentials([usernamePassword(credentialsId: 'github-creds', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_TOKEN')]) {
                             sh """
                             # Update image tag in values.yaml
-                            sed -i "s|tag:.*|tag: ${IMAGE_TAG}|g" ${APP_PATH}/values.yaml
+                            sed -i "s|tag:.*|tag: ${IMAGE_TAG}|g" ${helm_app_path}/values.yaml
 
                             # Configure git
                             git config user.name "MahouTn"
