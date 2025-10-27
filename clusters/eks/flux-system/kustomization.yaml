@@ -5,7 +5,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 5m
-  path: ./clusters/eks/flux-system/nodejs-app
+  path: ./nodejs-app
   prune: true
   sourceRef:
     kind: GitRepository
