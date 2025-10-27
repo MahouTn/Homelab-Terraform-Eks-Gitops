@@ -79,12 +79,12 @@ spec:
                             cd Homelab-Terraform-Eks-Gitops
 
                             # Update Helm chart values.yaml
-                            sed -i "s|tag:.*|tag: ${GIT_COMMIT}|g" k8s/Application/nodejs-demoapp/values.yaml
+                            sed -i "s|tag:.*|tag: ${GIT_COMMIT}|g" clusters/eks/flux-system/nodejs-app/configmap-nodejs-values.yaml
 
                             git config user.name "Jenkins"
                             git config user.email "jenkins@yourdomain.com"
 
-                            git add k8s/Application/nodejs-demoapp/values.yaml
+                            git add clusters/eks/flux-system/nodejs-app/configmap-nodejs-values.yaml
                             git commit -m "Update image tag to ${GIT_COMMIT}" || echo "No changes to commit"
                             git push origin main || echo "Nothing to push"
                             """
