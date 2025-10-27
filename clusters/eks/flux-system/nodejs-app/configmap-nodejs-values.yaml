@@ -9,7 +9,7 @@ data:
     image:
       repository: 802617578034.dkr.ecr.eu-west-1.amazonaws.com/homelab-eks
       pullPolicy: IfNotPresent
-      tag: b2631aaed268a317a7a8ea3f441282438305d201
+      tag: 682d3bb4928a9d3cf5f61de9d9f420d0e5a718de
     service:
       type: ClusterIP
       port: 3000
