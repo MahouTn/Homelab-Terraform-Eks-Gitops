@@ -1,0 +1,14 @@
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: nodejs-demoapp
+  namespace: default
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: ../../k8s/Application/nodejs-demoapp  # relative path from clusters/eks/
+  valuesFrom:
+    - kind: ConfigMap
+      name: nodejs-demoapp-values
+      valuesKey: values.yaml
