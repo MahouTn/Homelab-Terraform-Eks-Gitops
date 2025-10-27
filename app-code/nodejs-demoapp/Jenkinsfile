@@ -19,11 +19,6 @@ spec:
     env:
       - name: AWS_SDK_LOAD_CONFIG
         value: "true"
-  - name: git
-    image: alpine/git:latest
-    command:
-      - cat
-    tty: true
 '''
             defaultContainer 'kaniko'
         }
@@ -38,6 +33,14 @@ spec:
     }
 
     stages {
+        stage('Checkout Repository') {
+            steps {
+                container('kaniko') {
+                    checkout scm
+                }
+            }
+        }
+
         stage('Build and Push Docker Image') {
             steps {
                 container('kaniko') {
@@ -53,30 +56,25 @@ spec:
 
         stage('Update Helm Chart and Push') {
             steps {
-                container('git') {
-                    dir("${WORKSPACE}") {  // <-- make sure we are in the repo
-                        script {
-                            withCredentials([usernamePassword(credentialsId: 'github-creds', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_TOKEN')]) {
-                                sh """
-                                git config user.name "MahouTn"
-                                git config user.email "ayoub.mahou@gmail.com"
-                                git remote set-url origin https://${GIT_USER}:${GIT_TOKEN}@github.com/MahouTn/Homelab-Terraform-Eks-Gitops.git
+                container('kaniko') {
+                    script {
+                        withCredentials([usernamePassword(credentialsId: 'github-creds', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_TOKEN')]) {
+                            sh """
+                            git config user.name "MahouTn"
+                            git config user.email "ayoub.mahou@gmail.com"
+                            git remote set-url origin https://${GIT_USER}:${GIT_TOKEN}@github.com/MahouTn/Homelab-Terraform-Eks-Gitops.git
 
-                                git clone https://$GIT_USER:$GIT_TOKEN@github.com/MahouTn/Homelab-Terraform-Eks-Gitops.git
-                                cd Homelab-Terraform-Eks-Gitops
+                            # Update image tag in values.yaml
+                            sed -i "s|tag:.*|tag: ${IMAGE_TAG}|g" ${HELM_APP_PATH}/values.yaml
 
-                                # Update image tag in values.yaml
-                                sed -i "s|tag:.*|tag: ${IMAGE_TAG}|g" ${HELM_APP_PATH}/values.yaml
-
-                                git add ${HELM_APP_PATH}/values.yaml
-                                git commit -m "Update image tag to ${IMAGE_TAG}" || echo "No changes to commit"
-                                git push origin main || echo "Nothing to push"
-                                """
-                            }
+                            git add ${HELM_APP_PATH}/values.yaml
+                            git commit -m "Update image tag to ${IMAGE_TAG}" || echo "No changes to commit"
+                            git push origin main || echo "Nothing to push"
+                            """
                         }
                     }
                 }
             }
-}
-}
+        }
+    }
 }
