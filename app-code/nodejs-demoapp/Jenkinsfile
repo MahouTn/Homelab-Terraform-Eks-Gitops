@@ -50,14 +50,6 @@ spec:
                 }
             }
         }
-        stage('Checkout Repository') {
-            steps {
-                container('git') {
-                    checkout scm
-                }
-            }
-        }
-
 
         stage('Update Helm Chart and Push') {
             steps {
@@ -66,9 +58,12 @@ spec:
                         script {
                             withCredentials([usernamePassword(credentialsId: 'github-creds', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_TOKEN')]) {
                                 sh """
-                                git config user.name "Jenkins"
-                                git config user.email "jenkins@yourdomain.com"
+                                git config user.name "MahouTn"
+                                git config user.email "ayoub.mahou@gmail.com"
                                 git remote set-url origin https://${GIT_USER}:${GIT_TOKEN}@github.com/MahouTn/Homelab-Terraform-Eks-Gitops.git
+
+                                git clone https://$GIT_USER:$GIT_TOKEN@github.com/MahouTn/Homelab-Terraform-Eks-Gitops.git
+                                cd Homelab-Terraform-Eks-Gitops
 
                                 # Update image tag in values.yaml
                                 sed -i "s|tag:.*|tag: ${IMAGE_TAG}|g" ${HELM_APP_PATH}/values.yaml
