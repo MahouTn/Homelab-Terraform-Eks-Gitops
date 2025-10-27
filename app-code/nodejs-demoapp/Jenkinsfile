@@ -60,6 +60,8 @@ spec:
                     script {
                         withCredentials([usernamePassword(credentialsId: 'github-creds', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_TOKEN')]) {
                             sh """
+                            apt-get update
+                            apt-get install -y git
                             git config user.name "MahouTn"
                             git config user.email "ayoub.mahou@gmail.com"
                             git remote set-url origin https://${GIT_USER}:${GIT_TOKEN}@github.com/MahouTn/Homelab-Terraform-Eks-Gitops.git
