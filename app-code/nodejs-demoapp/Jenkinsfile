@@ -19,6 +19,11 @@ spec:
     env:
       - name: AWS_SDK_LOAD_CONFIG
         value: "true"
+  - name: git
+    image: alpine/git:latest
+    command:
+      - cat
+    tty: true
 '''
             defaultContainer 'kaniko'
         }
@@ -27,7 +32,7 @@ spec:
     environment {
         IMAGE_REGISTRY = '802617578034.dkr.ecr.eu-west-1.amazonaws.com/homelab-eks'
         APP_PATH = "${WORKSPACE}/app-code/nodejs-demoapp"
-        helm_app_path = "${WORKSPACE}/k8s/Application/nodejs-demoapp"
+        HELM_APP_PATH = "${WORKSPACE}/k8s/Application/nodejs-demoapp"
     }
 
     stages {
@@ -41,7 +46,7 @@ spec:
                         sh """
                         /kaniko/executor \
                             --context=${APP_PATH}/build \
-                            --dockerfile=./Dockerfile \
+                            --dockerfile=${APP_PATH}/Dockerfile \
                             --destination=${IMAGE_FULL_URI}
                         """
                     }
@@ -49,22 +54,19 @@ spec:
             }
         }
 
-        stage('Update Helm values.yaml and Push to Git') {
+        stage('Update Helm values.yaml and Push') {
             steps {
-                container('kaniko') {
+                container('git') {
                     script {
                         withCredentials([usernamePassword(credentialsId: 'github-creds', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_TOKEN')]) {
                             sh """
-                            # Update image tag in values.yaml
-                            sed -i "s|tag:.*|tag: ${IMAGE_TAG}|g" ${helm_app_path}/values.yaml
-
-                            # Configure git
                             git config user.name "MahouTn"
                             git config user.email "ayoub.mahoutn@gmail.com"
                             git remote set-url origin https://${GIT_USER}:${GIT_TOKEN}@github.com/MahouTn/Homelab-Terraform-Eks-Gitops.git
 
-                            # Commit and push changes
-                            git add ${APP_PATH}/values.yaml
+                            sed -i "s|tag:.*|tag: ${IMAGE_TAG}|g" ${HELM_APP_PATH}/values.yaml
+
+                            git add ${HELM_APP_PATH}/values.yaml
                             git commit -m "Update image tag to ${IMAGE_TAG}"
                             git push origin main
                             """
