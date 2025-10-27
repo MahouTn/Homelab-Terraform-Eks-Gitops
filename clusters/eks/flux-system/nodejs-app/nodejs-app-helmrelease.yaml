@@ -4,7 +4,7 @@ metadata:
   name: nodejs-demoapp
   namespace: default
 spec:
-  interval: 5m
+  interval: 1m
   chart:
     spec:
       chart: ../../../k8s/Application/nodejs-demoapp  # relative path from clusters/eks/
